@@ -3,6 +3,7 @@
 [![Flutter](https://img.shields.io/badge/Platform-Flutter-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Language-Dart-0175C2?logo=dart)](https://dart.dev)
 [![License](https://img.shields.io/badge/License-All_Rights_Reserved-red.svg)](https://choosealicense.com/no-permission/)
+
 **ManageTube** is a high-performance, Android utility designed to streamline YouTube library management. It addresses the native UI limitations of YouTube by enabling batch operations on playlists through efficient API integration, focusing on **OAuth2 security** and **asynchronous data processing**.
 
 ---
