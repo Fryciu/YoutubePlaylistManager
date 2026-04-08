@@ -1,66 +1,58 @@
-📺 Youtube Playlist Cleaner
-Aplikacja mobilna i desktopowa stworzona we Flutterze, która pozwala na szybkie i masowe usuwanie filmów z Twoich playlist na YouTube. Projekt powstał z myślą o prywatności i kontroli użytkownika nad własnymi danymi.
+# ManageTube – YouTube Management Tool
 
-🧐 Dlaczego warto zbudować to samodzielnie?
-Wysyłanie plików .apk przez komunikatory (jak Messenger) często budzi podejrzenia systemów bezpieczeństwa oraz nieufność u technicznych użytkowników. Dzięki temu repozytorium możesz:
+[![Flutter](https://img.shields.io/badge/Platform-Flutter-02569B?logo=flutter)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Language-Dart-0175C2?logo=dart)](https://dart.dev)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Przejrzeć kod źródłowy – upewnić się, że nie ma w nim żadnych backdoorów.
+**ManageTube** is a high-performance, Android utility designed to streamline YouTube library management. It addresses the native UI limitations of YouTube by enabling batch operations on playlists through efficient API integration, focusing on **OAuth2 security** and **asynchronous data processing**.
 
-Zbudować własną paczkę – mieć 100% pewności, że uruchamiasz dokładnie to, co widzisz w kodzie.
+---
 
-Dostosować aplikację – np. zmienić limity lub dodać własne funkcje.
+## 🚀 Key Features & Engineering Challenges
 
-🛠 Wymagania przed instalacją
-Aby zbudować projekt, potrzebujesz:
+* **Bulk API Operations:** Engineered complex request handling for the YouTube Data API v3, including pagination management and quota optimization.
+* **Secure Authentication:** Integrated Google OAuth2 flow, ensuring sensitive user credentials never touch the application (token-based authorization).
+* **State Management:** Utilized a reactive state management pattern to ensure smooth UI updates during intensive batch deletion processes.
 
-Flutter SDK: >=3.0.0
+---
 
-Dart SDK: >=3.0.0
+## 🛠 Technical Stack
 
-Git
+* **Framework:** Flutter (>=3.0.0)
+* **Language:** Dart (>=3.0.0)
+* **Native Flutter State Management**
+* **API Communication:** Google API Client (YouTube Data API v3)
+* **Auth:** Google Sign-In (OAuth 2.0)
 
-Android Studio (dla buildu Android) lub Visual Studio (z "Desktop development with C++" dla buildu Windows).
+---
 
-🚀 Instrukcja budowania (Quick Start)
-Skopiuj poniższe komendy do swojego terminala:
+## 🏗 Architecture & Project Structure
 
-1. Pobranie kodu
-Bash
-git clone https://github.com/TWOJA_NAZWA_UZYTKOWNIKA/youtube_playlist_cleaner.git
+The project follows **Clean Architecture** principles, separating data sources, business logic, and UI components to ensure maintainability and testability.
+
+### Development Prerequisites
+* Flutter SDK
+* Registered OAuth Client ID via Google Cloud Console
+
+### Build & Deployment
+The build process utilizes AOT (Ahead-of-Time) compilation and Tree Shaking to minimize binary size and maximize performance.
+
+```bash
+# Clone the repository
+git clone [https://github.com/Fryciu/youtube_playlist_cleaner.git](https://github.com/Fryciu/youtube_playlist_cleaner.git)
 cd youtube_playlist_cleaner
-2. Instalacja zależności
-Bash
+
+# Install dependencies
 flutter pub get
-3. Generowanie ikon (Opcjonalne)
-Jeśli zmieniłeś grafikę w assets, wygeneruj ikony natywne:
 
-Bash
-dart run flutter_launcher_icons
-4. Uruchomienie w trybie Debug
-Podłącz urządzenie i wpisz:
+# Test APK, while having phone connected to PC (Android)
+flutter run 
 
-Bash
-flutter run
-📦 Generowanie wersji instalacyjnej (Release)
-Jeśli chcesz stworzyć zoptymalizowaną wersję aplikacji dla siebie lub znajomych:
+# Build Release APK (Android)
+flutter build apk --release --split-per-abi
 
-📱 Android (APK)
-Bash
-flutter build apk --release
-Gotowy plik znajdziesz w: build/app/outputs/flutter-apk/app-release.apk
+# Test Executable (Windows)
+flutter run windows
 
-💻 Windows (EXE)
-Bash
+# Build Release Executable (Windows)
 flutter build windows
-Gotowa aplikacja znajduje się w folderze: build/windows/x64/runner/Release/
-Uwaga: Aby aplikacja działała na innym komputerze, musisz wysłać cały ten folder (łącznie z plikami .dll).
-
-🔒 Bezpieczeństwo i API
-OAuth2: Logowanie odbywa się przez oficjalne API Google. Aplikacja nie widzi i nie przechowuje Twojego hasła.
-
-AdMob: Wersja deweloperska korzysta z testowych ID reklam Google. Nie zbieramy danych o użytkownikach.
-
-Uprawnienia: Aplikacja prosi jedynie o dostęp do zarządzania Twoimi playlistami na YouTube (zakres https://www.googleapis.com/auth/youtube).
-
-🤝 Contribution
-Jeśli masz pomysł na ulepszenie algorytmu usuwania filmów lub chcesz poprawić UI – otwórz Pull Request!
