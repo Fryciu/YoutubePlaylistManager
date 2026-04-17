@@ -9,7 +9,7 @@ class AppLocalizationsPl extends AppLocalizations {
   AppLocalizationsPl([String locale = 'pl']) : super(locale);
 
   @override
-  String get appTitle => 'Menedżer Playlist YouTube';
+  String get appTitle => 'ManageTube';
 
   @override
   String get historyTitle => 'Historia usuwania';
@@ -18,7 +18,8 @@ class AppLocalizationsPl extends AppLocalizations {
   String get savedPlaylists => 'Zapisane playlisty';
 
   @override
-  String get removeVideos => 'Usuń filmy z playlisty';
+  String get chooseVideos_to_be_removed =>
+      'Wybierz filmy do usunięcia z playlisty';
 
   @override
   String get edit => 'Edytuj';
@@ -31,23 +32,15 @@ class AppLocalizationsPl extends AppLocalizations {
 
   @override
   String statusDeleted(int count) {
-    return 'Usunięto: $count filmów';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'filmów',
+      few: 'filmy',
+      one: 'film',
+    );
+    return 'Usunięto: $count $_temp0';
   }
-
-  @override
-  String get apiKeyLabel => 'Wklej tutaj zawartość client_secret.json';
-
-  @override
-  String get saveApi => 'Zapisz API';
-
-  @override
-  String get jsonError => 'Błąd JSON';
-
-  @override
-  String get apiKeyExists => 'Klucz API istnieje';
-
-  @override
-  String get noApiKey => 'Brak klucza API';
 
   @override
   String get addNewPlaylist => 'Dodaj nową playlistę';
@@ -80,20 +73,28 @@ class AppLocalizationsPl extends AppLocalizations {
   String get helptitle => 'Jak korzystać z aplikacji?';
 
   @override
+  String get notlogged =>
+      'Witaj w ManageTube, aplikacji do zarządzania playlistami na YouTube. Zanim zaczniesz, zapoznaj się z poradnikiem klikając pytajnik w prawym górnym rogu.';
+
+  @override
   String get helpstep1 =>
-      '1. Wklej ID playlisty lub pełny link z przeglądarki. Aplikacja automatycznie rozpozna właściwy identyfikator.';
+      '1. Zaloguj się na swoje konto Google klikając na ikonę profilu (obok pytajnika)';
 
   @override
   String get helpstep2 =>
-      '2. Określ liczbę filmów do usunięcia (\'all\' lub liczba). Filmy usuwane są od pierwszych widocznych na playliście';
+      '2. Zaimportuj playlisty za pomocą przycisku \'Wybierz playlisty do importu\'.';
 
   @override
   String get helpstep3 =>
-      '3. Kliknij \'Usuń filmy\' – aplikacja zajmie się resztą!';
+      '3. Po zaimportowaniu playlist, określ z której chcesz usunąć filmy, po czym kliknij zielony przycisk z napisem \'Wybierz filmy do usunięcia z playlisty\' z wybranej playlisty.';
 
   @override
   String get helpstep4 =>
-      '4. Jeśli usuniesz coś przez pomyłkę, przejdź do \'Historii\'. Tam znajdziesz wszystkie swoje usunięte filmy, co pozwoli Ci je łatwo odnaleźć i przywrócić ręcznie na YouTube.';
+      '4. Wybierz filmy które chcesz usunąć i kliknij \'Usuń x film/filmy/filmów\' – aplikacja zajmie się resztą!';
+
+  @override
+  String get helpstep5 =>
+      '5. Jeśli usuniesz coś przez pomyłkę, przejdź do \'Historii\'. Tam znajdziesz wszystkie swoje usunięte filmy, co pozwoli Ci je łatwo odnaleźć i przywrócić ręcznie na YouTube.';
 
   @override
   String get understand => 'Rozumiem';
@@ -124,5 +125,86 @@ class AppLocalizationsPl extends AppLocalizations {
   String get cancel => 'Anuluj';
 
   @override
-  String get deleteAll => 'Usuń wszystko';
+  String get deleteAll => 'Usuń wszystkie';
+
+  @override
+  String get login => 'Zaloguj się';
+
+  @override
+  String get logout => 'Wyloguj się';
+
+  @override
+  String get importplaylists => 'Wybierz playlisty do importu';
+
+  @override
+  String get chooseplaylists => 'Wybierz playlisty';
+
+  @override
+  String get selectAll => 'Zaznacz wszystkie';
+
+  @override
+  String get unselectAll => 'Odznacz wszystkie';
+
+  @override
+  String get addSelected => 'Dodaj wybrane';
+
+  @override
+  String get noPlaylistsFound => 'Nie znaleziono playlist.';
+
+  @override
+  String get confirmTitle => 'Potwierdzenie';
+
+  @override
+  String deleteConfirmMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'filmów',
+      few: 'filmy',
+      one: 'film',
+    );
+    return 'Czy na pewno chcesz usunąć $count $_temp0 z playlisty?';
+  }
+
+  @override
+  String get deleteAllPlaylistsConfirm =>
+      'Czy na pewno chcesz usunąć wszystkie zapisane playlisty?';
+
+  @override
+  String get listCleared => 'Lista wyczyszczona.';
+
+  @override
+  String get loading => 'Łączenie...';
+
+  @override
+  String get deletingVideos => 'Usuwanie filmów';
+
+  @override
+  String get nameLabel => 'Nazwa';
+
+  @override
+  String get idLabel => 'ID';
+
+  @override
+  String get rangeHint => 'Wpisz zakresy (np. 1-5,7,9-11):';
+
+  @override
+  String selectedCount(int count) {
+    return '$count zaznaczonych';
+  }
+
+  @override
+  String deleteAction(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'FILMÓW',
+      few: 'FILMY',
+      one: 'FILM',
+    );
+    return 'USUŃ $count $_temp0';
+  }
+
+  @override
+  String get noVideosFound => 'Nie znaleziono filmów';
 }

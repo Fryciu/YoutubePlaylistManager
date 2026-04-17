@@ -1,45 +1,78 @@
 {
   "@@locale": "en",
-  "appTitle": "YouTube Playlist Manager",
+  "appTitle": "ManageTube",
   "historyTitle": "Deletion History",
   "savedPlaylists": "Saved Playlists",
-  "removeVideos": "Remove videos from playlist",
+  "chooseVideos_to_be_removed": "Choose videos to be removed from playlist",
   "edit": "Edit",
   "remove": "Remove",
   "forDeletion": "To be deleted",
-  "statusDeleted": "Deleted: {count} videos",
+  "statusDeleted": "Deleted: {count} {count, plural, one{video} other{videos}}",
   "@statusDeleted": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "apiKeyLabel": "Paste client_secret.json content here",
-  "saveApi": "Save API",
-  "jsonError": "JSON Error",
-  "apiKeyExists": "API Key exists",
-  "noApiKey": "No API Key",
   "addNewPlaylist": "Add new playlist",
-  "playlistName": "Playlist Name",
+  "playlistName": "Playlist name",
   "playlistId": "Playlist ID or link",
-  "deleteCountHint": "Number of videos ('all' or digit)",
-  "addPlaylistBtn": "Add Playlist",
-  "saveChanges": "Save Changes",
-  "noName": "No Name",
-  "deleteSuccess": "Deletion finished and history saved.",
-  "idorlink": "ID or link to the playlist",
+  "deleteCountHint": "Number of videos ('all' or number)",
+  "addPlaylistBtn": "Add playlist",
+  "saveChanges": "Save changes",
+  "noName": "No name",
+  "deleteSuccess": "Deletion completed and history saved.",
+  "idorlink": "ID or link to playlist",
   "helptitle": "How to use the app?",
-  "helpstep1": "1. Paste the playlist ID or the full browser link. The app will automatically detect the correct ID.",
-  "helpstep2": "2. Set the number of videos to delete ('all' or a specific number). Videos are removed starting from the first ones visible on the playlist.",
-  "helpstep3": "3. Click 'Remove videos' – the app will handle the rest!",
-  "helpstep4": "4. If you delete something by mistake, go to 'History'. You will find all your deleted videos there, allowing you to easily find and restore them manually on YouTube.",
-  "understand": "Got it",
-  "nohistory": "No history found",
-  "deletedvideoshistory": "Deleted Videos History",
+  "notlogged": "Welcome to ManageTube, app for managing youtube playlists. Before you begin, get familiar with the app guide by clicking the question mark in upper right corner.",
+  "helpstep1": "1. Log in to your Google account by clicking the profile icon (next to the question mark).",
+  "helpstep2": "2. Import playlists using the 'Choose playlists to import' button.",
+  "helpstep3": "3. After importing playlists, specify which you want to remove videos from, and press the green button saying 'Choose videos to be removed from playlist' of the chosen playlist",
+  "helpstep4": "4. Choose videos you want to be removed by clicking on them, and then click 'DELETE x video/videos' – the app will handle the rest!",
+  "helpstep5": "5. If you delete something by mistake, go to 'History'. You will find all your deleted videos there, allowing you to easily find and manually restore them on YouTube.",
+  "understand": "I understand",
+  "nohistory": "No history",
+  "deletedvideoshistory": "Deleted videos history",
   "unknownplaylist": "Unknown playlist",
   "prepearing": "Preparing...",
   "reinstatingvideos": "Restoring videos",
   "confirmDeleteTitle": "Remove from history",
-  "confirmDeleteContent": "Are you sure you want to remove this entire playlist from history? This data will be lost.",
+  "confirmDeleteContent": "Are you sure you want to delete this entire playlist from history? This data will be lost.",
   "cancel": "Cancel",
-  "deleteAll": "Delete all"
+  "deleteAll": "Delete all",
+  "login": "Login",
+  "logout": "Logout",
+  "importplaylists": "Choose playlists to import",
+  "chooseplaylists": "Choose playlists",
+  "selectAll": "Select all",
+  "unselectAll": "Unselect all",
+  "addSelected": "Add selected",
+  "noPlaylistsFound": "No playlists found.",
+  "confirmTitle": "Confirmation",
+  "deleteConfirmMessage": "Are you sure you want to delete {count} {count, plural, one{video} other{videos}} from the playlist?",
+  "@deleteConfirmMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "deleteAllPlaylistsConfirm": "Are you sure you want to delete all saved playlists?",
+  "listCleared": "List cleared.",
+  "loading": "Connecting...",
+  "deletingVideos": "Deleting videos",
+  "nameLabel": "Name",
+  "idLabel": "ID",
+  "rangeHint": "Enter ranges (e.g., 1-5,7,9-11):",
+  "selectedCount": "{count} selected",
+  "@selectedCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "deleteAction": "DELETE {count} {count, plural, one{VIDEO} other{VIDEOS}}",
+  "@deleteAction": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "noVideosFound": "No videos found"
+
 }

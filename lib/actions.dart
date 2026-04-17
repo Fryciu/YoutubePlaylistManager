@@ -10,20 +10,77 @@ import 'package:http/http.dart' as http;
 import 'package:googleapis_auth/auth_io.dart' as auth_io;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Dodaj import
+import 'package:shared_preferences/shared_preferences.dart';
+import 'history_page.dart' show QuotaExceededException;
+import 'keys.dart';
+
+class UserProfile {
+  final String? displayName;
+  final String? photoUrl;
+  final String? email; // <-- dodaj
+  UserProfile({this.displayName, this.photoUrl, this.email});
+}
+
+class VideoItem {
+  final String playlistItemId;
+  final String videoId;
+  final String title;
+  final String thumbnailUrl;
+  final int position;
+
+  VideoItem({
+    required this.playlistItemId,
+    required this.videoId,
+    required this.title,
+    required this.thumbnailUrl,
+    required this.position,
+  });
+}
+
+class AuthSession {
+  final String token;
+  final String userId;
+
+  AuthSession(this.token, this.userId);
+
+  // Konwersja do Mapy (którą potem zamienimy na String)
+  Map<String, dynamic> toJson() => {'token': token, 'userId': userId};
+
+  // Tworzenie obiektu z Mapy
+  factory AuthSession.fromJson(Map<String, dynamic> json) {
+    return AuthSession(json['token'], json['userId']);
+  }
+}
 
 class PlaylistActions {
+  static final keylist = readkeys();
   static final auth.ClientId _desktopClientId = auth.ClientId(
-    '836288924762-iigge2a1e53nlmru0l5a462o2dnumqfm.apps.googleusercontent.com',
-    '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',
+    keylist[0],
+    keylist[1],
   );
+  static final auth.ClientId _mobileClientId = auth.ClientId(
+    keylist[2],
+    null, // Mobile/natywny klient nie używa client secret
+  );
+  static bool _authInProgress = false;
   static final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   static bool _initialized = false;
 
-  static final List<String> _scopes = [YouTubeApi.youtubeForceSslScope];
+  static auth.AuthClient? _cachedAuthClient;
+  static String? _cachedEmail;
 
+  // W actions.dart
+  static final List<String> _scopes = [
+    YouTubeApi.youtubeForceSslScope,
+    'openid', // Dodaj to
+    'https://www.googleapis.com/auth/userinfo.profile', // I to
+    'email',
+  ];
+  static ValueNotifier<UserProfile?> currentUserNotifier = ValueNotifier(null);
   static Future<void> initialize() async {
+    final keylist = readkeys();
     if (_initialized) return;
-    await _googleSignIn.initialize();
+    await _googleSignIn.initialize(serverClientId: keylist[3]);
     _initialized = true;
     debugPrint('GoogleSignIn zainicjalizowany.');
   }
@@ -51,70 +108,525 @@ class PlaylistActions {
   // Autoryzacja
   // ─────────────────────────────────────────────
 
-  static Future<auth.AuthClient?> _getAuthClient() async {
+  static Future<UserProfile?> getInitialProfile() async {
     try {
       if (Platform.isAndroid || Platform.isIOS) {
         await initialize();
-        GoogleSignInAccount? account = await _googleSignIn
-            .attemptLightweightAuthentication();
-        if (account == null) {
-          if (_googleSignIn.supportsAuthenticate()) {
-            account = await _googleSignIn.authenticate();
-          } else {
-            return null;
-          }
+
+        // 1. Sprawdź cache profilu — zero UI, zero sieci
+        final cached = await _loadProfileFromCache();
+        if (cached != null) {
+          debugPrint('[Auth] Profil z cache: ${cached.email}');
+          currentUserNotifier.value = cached;
+          // Klient zostanie zbudowany leniwie przy pierwszym fetch — nie robimy nic w tle
+          return cached;
         }
-        GoogleSignInClientAuthorization? authorization = await account
-            .authorizationClient
-            .authorizationForScopes(_scopes);
-        authorization ??= await account.authorizationClient.authorizeScopes(
-          _scopes,
+
+        // 2. Brak cache — próba cichego logowania przez SDK (BEZ UI)
+        final account = await _googleSignIn.attemptLightweightAuthentication();
+        debugPrint('[Auth] Ciche logowanie: ${account?.email ?? "brak"}');
+        if (account == null) return null;
+
+        final profile = UserProfile(
+          displayName: account.displayName,
+          photoUrl: account.photoUrl,
+          email: account.email,
         );
-        return authorization.authClient(scopes: _scopes);
-      } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        currentUserNotifier.value = profile;
+        await _saveProfileToCache(profile);
+        return profile;
+      } else {
+        // Desktop
         final directory = await getAppDirectory();
         final tokenFile = File(
           '${directory.path}${Platform.pathSeparator}token.json',
         );
-
         if (await tokenFile.exists()) {
-          final content = await tokenFile.readAsString();
-          final credentials = auth.AccessCredentials.fromJson(
-            json.decode(content) as Map<String, dynamic>,
-          );
-          final baseClient = http.Client();
+          await _getAuthClient();
+          return currentUserNotifier.value;
+        }
+      }
+    } catch (e) {
+      debugPrint('[Auth] Błąd sprawdzania sesji na starcie: $e');
+    }
+    return null;
+  }
+
+  // Zapis profilu
+  static Future<void> _saveProfileToCache(UserProfile profile) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_displayName', profile.displayName ?? '');
+    await prefs.setString('user_photoUrl', profile.photoUrl ?? '');
+    await prefs.setString('user_email', profile.email ?? '');
+  }
+
+  // Odczyt profilu
+  static Future<UserProfile?> _loadProfileFromCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('user_email');
+    if (email == null || email.isEmpty) return null;
+    return UserProfile(
+      displayName: prefs.getString('user_displayName'),
+      photoUrl: prefs.getString('user_photoUrl'),
+      email: email,
+    );
+  }
+
+  // ── NOWE METODY: persystencja tokenów na mobile ──────────────────────────────
+
+  static Future<void> _saveTokensToPrefs(auth.AccessCredentials creds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('oauth_access_token', creds.accessToken.data);
+    await prefs.setString(
+      'oauth_token_expiry',
+      creds.accessToken.expiry.toIso8601String(),
+      //DateTime.now()
+      //    .subtract(Duration(minutes: 10))
+      //    .toIso8601String(), // Udajemy, że wygasł 10 min temu
+    );
+    print(creds.accessToken.expiry);
+    await prefs.setString('oauth_refresh_token', creds.refreshToken ?? '');
+    final scopeList = creds.scopes;
+    await prefs.setString('oauth_scopes', scopeList.join(','));
+    debugPrint('[Auth] Tokeny zapisane do SharedPreferences');
+  }
+
+  static Future<void> _clearTokensFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('oauth_access_token');
+    await prefs.remove('oauth_token_expiry');
+    await prefs.remove('oauth_refresh_token');
+    await prefs.remove('oauth_scopes');
+    debugPrint('[Auth] Tokeny usunięte z SharedPreferences');
+  }
+
+  // Czyszczenie przy wylogowaniu
+  static Future<void> _clearProfileCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_displayName');
+    await prefs.remove('user_photoUrl');
+    await prefs.remove('user_email');
+  }
+
+  // Przywraca klienta OAuth z zapisanych tokenów — BEZ UI, BEZ sieci (poza ewentualnym refresh)
+  static Future<auth.AuthClient?> _loadAuthClientFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('oauth_access_token');
+      final expiryStr = prefs.getString('oauth_token_expiry');
+      final refreshToken = prefs.getString('oauth_refresh_token');
+      final scopesStr = prefs.getString('oauth_scopes');
+
+      if (accessToken == null || expiryStr == null) return null;
+
+      final expiry = DateTime.tryParse(expiryStr);
+      if (expiry == null) return null;
+
+      final scopes = scopesStr?.split(',') ?? _scopes;
+
+      final credentials = auth.AccessCredentials(
+        auth.AccessToken('Bearer', accessToken, expiry.toUtc()),
+        refreshToken?.isEmpty ?? true ? null : refreshToken,
+        scopes,
+      );
+
+      final baseClient = http.Client();
+
+      // Jeśli token wygasł i mamy refresh token — odśwież cicho
+      if (expiry.isBefore(DateTime.now().toUtc()) &&
+          credentials.refreshToken != null) {
+        debugPrint('[Auth] Token wygasł — cichy refresh z SharedPreferences');
+        final clientId = (Platform.isAndroid || Platform.isIOS)
+            ? _mobileClientId
+            : _desktopClientId;
+        try {
           final refreshed = await auth.refreshCredentials(
-            _desktopClientId,
+            clientId,
             credentials,
             baseClient,
           );
-          await tokenFile.writeAsString(json.encode(refreshed.toJson()));
+          await _saveTokensToPrefs(refreshed);
           return auth.authenticatedClient(baseClient, refreshed);
+        } catch (e) {
+          debugPrint('[Auth] Cichy refresh nieudany: $e');
+          await _clearTokensFromPrefs();
+          return null;
+        }
+      }
+      debugPrint("expiry $expiry");
+      if (expiry.isAfter(DateTime.now().toUtc())) {
+        debugPrint(
+          '[Auth] Przywrócono klienta z SharedPreferences (token ważny)',
+        );
+        return auth.authenticatedClient(baseClient, credentials);
+      }
+    } catch (e) {
+      debugPrint('[Auth] Błąd ładowania tokenów z prefs: $e');
+    }
+    return null;
+  }
+
+  // W pliku actions.dart zmodyfikuj metodę _getAuthClient:
+
+  static Future<auth.AuthClient?> _getAuthClient() async {
+    // 1. Jeśli mamy już aktywny i ważny klient w pamięci, zwróć go natychmiast
+    if (_cachedAuthClient != null) {
+      final currentEmail = currentUserNotifier.value?.email;
+      if (currentEmail == null || currentEmail == _cachedEmail) {
+        return _cachedAuthClient;
+      } else {
+        // Zmiana użytkownika - czyścimy cache
+        _cachedAuthClient = null;
+        _cachedEmail = null;
+      }
+    }
+
+    if (_authInProgress) return null;
+
+    _authInProgress = true;
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        await initialize();
+
+        // 2. Próba przywrócenia klienta z zapisanych tokenów — BEZ UI, BEZ popup
+        final restoredClient = await _loadAuthClientFromPrefs();
+        if (restoredClient != null) {
+          _cachedAuthClient = restoredClient;
+          _cachedEmail = currentUserNotifier.value?.email;
+          debugPrint('[Auth] Klient przywrócony z prefs — brak popup');
+          return _cachedAuthClient;
         }
 
-        final client = await auth_io.clientViaUserConsent(
-          _desktopClientId,
-          _scopes,
-          (url) async {
-            final uri = Uri.parse(url);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            }
-          },
+        // 3. Próba cichego przywrócenia sesji przez GoogleSignIn SDK — BEZ UI
+        final account = await _googleSignIn.attemptLightweightAuthentication();
+
+        if (account == null) {
+          // Brak sesji — zwróć null, UI pokaże przycisk logowania
+          return null;
+        }
+
+        debugPrint('[Auth] Ciche logowanie OK: ${account.email}');
+
+        GoogleSignInClientAuthorization? authorization;
+        try {
+          authorization = await account.authorizationClient
+              .authorizationForScopes(_scopes);
+        } catch (e) {
+          debugPrint('[Auth] authorizationForScopes silent error: $e');
+        }
+
+        // 4. Jeśli grant wygasł lub nie istnieje — poproś raz z UI (jednorazowo)
+        if (authorization == null) {
+          debugPrint(
+            '[Auth] Brak grantu — proszę o scopey (jednorazowe UI)...',
+          );
+          try {
+            authorization = await account.authorizationClient.authorizeScopes(
+              _scopes,
+            );
+          } catch (e) {
+            debugPrint('[Auth] authorizeScopes error: $e');
+            return null;
+          }
+        }
+
+        final client = authorization.authClient(scopes: _scopes);
+        currentUserNotifier.value = UserProfile(
+          displayName: account.displayName,
+          photoUrl: account.photoUrl,
+          email: account.email,
         );
-        await tokenFile.writeAsString(json.encode(client.credentials.toJson()));
+        await _saveProfileToCache(currentUserNotifier.value!);
+        // Zapisz tokeny trwale — żeby przy kolejnym uruchomieniu nie było popup
+        await _saveTokensToPrefs(client.credentials);
+        _cachedAuthClient = client;
+        _cachedEmail = account.email;
+        return client;
+      }
+
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final directory = await getAppDirectory();
+        final tokenFile = File(
+          '${directory.path}${Platform.pathSeparator}token.json',
+        );
+        auth.AuthClient? client;
+
+        if (await tokenFile.exists()) {
+          try {
+            final content = await tokenFile.readAsString();
+            final credentials = auth.AccessCredentials.fromJson(
+              json.decode(content),
+            );
+            final baseClient = http.Client();
+            final refreshed = await auth.refreshCredentials(
+              _desktopClientId,
+              credentials,
+              baseClient,
+            );
+            await tokenFile.writeAsString(json.encode(refreshed.toJson()));
+            client = auth.authenticatedClient(baseClient, refreshed);
+          } catch (e) {
+            debugPrint('[Auth] Błąd odświeżania: $e');
+            await tokenFile.delete();
+          }
+        }
+
+        if (client == null) {
+          client = await auth_io
+              .clientViaUserConsent(_desktopClientId, _scopes, (url) async {
+                final uri = Uri.parse(url);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              })
+              .timeout(const Duration(minutes: 3));
+
+          await tokenFile.writeAsString(
+            json.encode(client.credentials.toJson()),
+          );
+        }
+
+        // --- KLUCZOWA POPRAWKA: Pobieraj dane profilu ZAWSZE, nawet po odświeżeniu tokenu ---
+        try {
+          final response = await http.get(
+            Uri.parse('https://www.googleapis.com/oauth2/v3/userinfo'),
+            headers: {
+              'Authorization': 'Bearer ${client.credentials.accessToken.data}',
+            },
+          );
+
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            PlaylistActions.currentUserNotifier.value = UserProfile(
+              displayName: data['name'],
+              photoUrl: data['picture'], // To jest kluczowe dla zdjęcia
+              email: data['email'], // <-- dodaj
+            );
+            debugPrint('[Auth] Desktop: Pobrano profil ${data['name']}');
+          }
+        } catch (e) {
+          debugPrint('[Auth] Błąd pobierania info o użytkowniku: $e');
+        }
+        _cachedAuthClient = client;
+        _cachedEmail = currentUserNotifier.value?.email;
         return client;
       }
       return null;
-    } catch (e) {
-      debugPrint('Błąd autoryzacji: $e');
-      return null;
+    } finally {
+      _authInProgress = false;
     }
   }
 
+  // W klasie PlaylistActions w pliku actions.dart
+  static Future<void> signOut() async {
+    _cachedAuthClient = null;
+    _cachedEmail = null;
+    try {
+      await _clearProfileCache(); // <-- dodaj
+      await _clearTokensFromPrefs(); // ← DODAJ
+
+      // 1. Wylogowanie Mobile
+      if (Platform.isAndroid || Platform.isIOS) {
+        await _googleSignIn.signOut();
+        await _googleSignIn.disconnect();
+        debugPrint('[Auth] Wylogowano z Google (Mobile)');
+      }
+
+      // 2. Wylogowanie Desktop (usuwanie tokenu)
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final directory = await getAppDirectory();
+        final tokenFile = File(
+          '${directory.path}${Platform.pathSeparator}token.json',
+        );
+        if (await tokenFile.exists()) {
+          await tokenFile.delete();
+          debugPrint('[Auth] Usunięto token sesji (Desktop)');
+        }
+      }
+      currentUserNotifier.value = null; // To powiadomi UI o wylogowaniu
+    } catch (e) {
+      debugPrint('[Auth] Błąd podczas wylogowywania: $e');
+    }
+  }
   // ─────────────────────────────────────────────
   // Przetwarzanie (USUWANIE)
   // ─────────────────────────────────────────────
+
+  // plik actions.dart wewnątrz klasy PlaylistActions
+
+  static Future<void> signInExplicitly() async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      await initialize();
+
+      GoogleSignInAccount? account = await _googleSignIn
+          .attemptLightweightAuthentication();
+
+      if (account == null) {
+        if (!_googleSignIn.supportsAuthenticate()) return;
+        account = await _googleSignIn.authenticate(); // UI tylko tutaj
+      }
+
+      currentUserNotifier.value = UserProfile(
+        displayName: account.displayName,
+        photoUrl: account.photoUrl,
+        email: account.email,
+      );
+
+      GoogleSignInClientAuthorization? authorization;
+      try {
+        authorization = await account.authorizationClient
+            .authorizationForScopes(_scopes);
+      } catch (e) {
+        debugPrint('[Auth] authorizationForScopes error: $e');
+      }
+
+      authorization ??= await account.authorizationClient.authorizeScopes(
+        _scopes,
+      ); // UI scope tylko tutaj
+
+      _cachedAuthClient = authorization.authClient(scopes: _scopes);
+      _cachedEmail = account.email;
+      await _saveProfileToCache(currentUserNotifier.value!);
+      // Zapisz tokeny trwale — żeby przy kolejnym uruchomieniu nie było popup
+      await _saveTokensToPrefs(_cachedAuthClient!.credentials);
+      debugPrint('[Auth] signInExplicitly: cache zbudowany');
+    } else {
+      await _getAuthClient();
+    }
+  }
+
+  // plik actions.dart
+
+  static Future<List<Map<String, String>>> fetchUserPlaylists() async {
+    final auth.AuthClient? authClient = await _getAuthClient();
+    if (authClient == null) return [];
+
+    final youtubeApi = YouTubeApi(authClient);
+    List<Map<String, String>> myPlaylists = [];
+    String? pageToken;
+
+    try {
+      do {
+        // Pobieranie playlist zalogowanego użytkownika (mine: true)
+        final response = await youtubeApi.playlists.list(
+          ['snippet', 'id', 'contentDetails'],
+          mine: true,
+          maxResults: 50,
+          pageToken: pageToken,
+        );
+
+        if (response.items != null) {
+          for (var item in response.items!) {
+            myPlaylists.add({
+              "name": item.snippet?.title ?? "Bez nazwy",
+              "id": item.id ?? "",
+              "deleteCount": "all", // Domyślna wartość
+            });
+          }
+        }
+        pageToken = response.nextPageToken;
+      } while (pageToken != null);
+    } catch (e) {
+      debugPrint("Błąd podczas pobierania playlist: $e");
+    }
+
+    return myPlaylists;
+  }
+
+  // ─────────────────────────────────────────────
+  // Pobieranie filmów z playlisty (miniaturki)
+  // ─────────────────────────────────────────────
+
+  static Future<List<VideoItem>> fetchPlaylistItems(String rawInput) async {
+    final auth.AuthClient? authClient = await _getAuthClient();
+    if (authClient == null) return [];
+
+    final youtubeApi = YouTubeApi(authClient);
+    final String playlistId = extractPlaylistId(rawInput);
+    if (playlistId.isEmpty) return [];
+
+    final List<VideoItem> items = [];
+    String? pageToken;
+    int position = 0;
+
+    try {
+      do {
+        final response = await youtubeApi.playlistItems.list(
+          ['id', 'snippet'],
+          playlistId: playlistId,
+          maxResults: 50,
+          pageToken: pageToken,
+        );
+
+        for (final item in response.items ?? []) {
+          final snippet = item.snippet;
+          if (snippet == null) continue;
+          position++;
+          items.add(
+            VideoItem(
+              playlistItemId: item.id ?? '',
+              videoId: snippet.resourceId?.videoId ?? '',
+              title: snippet.title ?? 'Bez tytułu',
+              thumbnailUrl:
+                  snippet.thumbnails?.medium?.url ??
+                  snippet.thumbnails?.default_?.url ??
+                  '',
+              position: position,
+            ),
+          );
+        }
+        pageToken = response.nextPageToken;
+      } while (pageToken != null);
+    } catch (e) {
+      debugPrint('Błąd pobierania filmów: $e');
+    }
+
+    return items;
+  }
+
+  static bool hasCachedClient() {
+    return _cachedAuthClient != null;
+  }
+
+  static Future<Map<String, dynamic>> processPlaylistItems(
+    Map<String, dynamic> playlistData,
+    List<VideoItem> selectedItems,
+    Function(int current, int total, String title) onProgress,
+  ) async {
+    final auth.AuthClient? authClient = await _getAuthClient();
+    if (authClient == null) return {};
+
+    final youtubeApi = YouTubeApi(authClient);
+    final String timeRegistry = _nowTimestamp();
+    final Map<String, dynamic> deletedNames = {};
+
+    final String rawInput = playlistData['id'] as String? ?? '';
+    final String playlistId = extractPlaylistId(rawInput);
+    if (playlistId.isEmpty) return {};
+
+    final String playlistTitle = playlistData['name'] as String? ?? 'Unknown';
+    final int total = selectedItems.length;
+
+    deletedNames[playlistId] = {
+      'Name': playlistTitle,
+      'Dates': {timeRegistry: <String, String>{}},
+    };
+
+    for (int i = 0; i < selectedItems.length; i++) {
+      final item = selectedItems[i];
+      onProgress(i + 1, total, item.title);
+      try {
+        await youtubeApi.playlistItems.delete(item.playlistItemId);
+        (deletedNames[playlistId]['Dates'][timeRegistry]
+                as Map<String, String>)[item.title] =
+            item.videoId;
+      } catch (e) {
+        debugPrint("Błąd usuwania '${item.title}': $e");
+      }
+    }
+
+    return deletedNames;
+  }
 
   static Future<Map<String, dynamic>> processPlaylist(
     Map<String, dynamic> playlistData,
@@ -224,14 +736,24 @@ class PlaylistActions {
     final videoEntries = videos.entries.toList();
     final int total = videoEntries.length;
 
-    for (int i = 0; i < total; i++) {
-      onProgress(i + 1, total, videoEntries[i].key);
-      await reAddVideoToPlaylist(
-        playlistId,
-        videoEntries[i].value,
-        dateOfAddition,
-        updateHistoryInFile: false,
-      );
+    final auth.AuthClient? authClient = await _getAuthClient();
+    if (authClient != null) {
+      final youtubeApi = YouTubeApi(authClient);
+      for (int i = 0; i < total; i++) {
+        onProgress(i + 1, total, videoEntries[i].key);
+        await youtubeApi.playlistItems.insert(
+          PlaylistItem(
+            snippet: PlaylistItemSnippet(
+              playlistId: playlistId,
+              resourceId: ResourceId(
+                kind: 'youtube#video',
+                videoId: videoEntries[i].value,
+              ),
+            ),
+          ),
+          ['snippet'],
+        );
+      }
     }
 
     await _manualDeleteDateFromHistory(playlistId, dateOfAddition);
@@ -279,7 +801,7 @@ class PlaylistActions {
     String date,
   ) async {
     try {
-      final directory = await getAppDirectory();
+      final directory = await getUserDirectory();
       final file = File(
         '${directory.path}${Platform.pathSeparator}history.json',
       );
@@ -307,7 +829,7 @@ class PlaylistActions {
     String date,
   ) async {
     try {
-      final directory = await getAppDirectory();
+      final directory = await getUserDirectory();
       final file = File(
         '${directory.path}${Platform.pathSeparator}history.json',
       );
@@ -338,7 +860,7 @@ class PlaylistActions {
   ) async {
     final String playlistId = extractPlaylistId(rawPlaylistId);
     try {
-      final directory = await getAppDirectory();
+      final directory = await getUserDirectory();
       final file = File(
         '${directory.path}${Platform.pathSeparator}history.json',
       );
@@ -359,12 +881,81 @@ class PlaylistActions {
     }
   }
 
+  static Future<void> removeDateFromHistory(
+    String rawPlaylistId,
+    String date,
+  ) async {
+    final String playlistId = extractPlaylistId(rawPlaylistId);
+    try {
+      final directory = await getUserDirectory();
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}history.json',
+      );
+      if (!await file.exists()) return;
+      final content = await file.readAsString();
+      if (content.isEmpty) return;
+      Map<String, dynamic> history = json.decode(content);
+      if (!history.containsKey(playlistId)) return;
+      (history[playlistId]['Dates'] as Map).remove(date);
+      if ((history[playlistId]['Dates'] as Map).isEmpty) {
+        history.remove(playlistId);
+      }
+      await file.writeAsString(
+        const JsonEncoder.withIndent('    ').convert(history),
+      );
+    } catch (e) {
+      debugPrint("Błąd podczas usuwania daty z historii: $e");
+    }
+  }
+
+  static Future<void> removeSingleVideoFromHistory(
+    String rawPlaylistId,
+    String date,
+    String videoTitle,
+  ) async {
+    final String playlistId = extractPlaylistId(rawPlaylistId);
+    try {
+      final directory = await getUserDirectory();
+      final file = File(
+        '${directory.path}${Platform.pathSeparator}history.json',
+      );
+      if (!await file.exists()) return;
+
+      final content = await file.readAsString();
+      if (content.isEmpty) return;
+
+      Map<String, dynamic> history = json.decode(content);
+      if (!history.containsKey(playlistId)) return;
+
+      final dates = history[playlistId]['Dates'] as Map<String, dynamic>;
+      if (!dates.containsKey(date)) return;
+
+      (dates[date] as Map).remove(videoTitle);
+
+      // Jeśli data jest pusta — usuń ją
+      if ((dates[date] as Map).isEmpty) {
+        dates.remove(date);
+      }
+
+      // Jeśli playlista jest pusta — usuń ją
+      if (dates.isEmpty) {
+        history.remove(playlistId);
+      }
+
+      await file.writeAsString(
+        const JsonEncoder.withIndent('    ').convert(history),
+      );
+    } catch (e) {
+      debugPrint("Błąd podczas usuwania wpisu z historii: $e");
+    }
+  }
+
   static Future<Map<String, dynamic>> saveDeletedHistory(
     Map<String, dynamic> deletedNames,
   ) async {
     if (deletedNames.isEmpty) return {};
     try {
-      final directory = await getAppDirectory();
+      final directory = await getUserDirectory();
       final file = File(
         '${directory.path}${Platform.pathSeparator}history.json',
       );
@@ -389,11 +980,425 @@ class PlaylistActions {
   }
 
   static String _nowTimestamp() => DateTime.now().toString().split('.').first;
+
+  // ─────────────────────────────────────────────
+  // Usuwanie z wykrywaniem quota (Bug 2 fix)
+  // ─────────────────────────────────────────────
+
+  /// Like [processPlaylistItems] but throws [QuotaExceededException] when the
+  /// YouTube API returns a 403 quota error, carrying the unprocessed items so
+  /// the TaskQueue can retry them later.
+  ///
+  /// [onProgress]      — called with (current, total, title) after each delete.
+  /// [onPartialResult] — called with a partial history map whenever at least
+  ///                     one video has been successfully deleted.
+  static Future<void> processPlaylistItemsWithQuota(
+    Map<String, dynamic> playlistData,
+    List<VideoItem> selectedItems,
+    Function(int current, int total, String title) onProgress, {
+    required Function(Map<String, dynamic> partial) onPartialResult,
+  }) async {
+    final auth.AuthClient? authClient = await _getAuthClient();
+    if (authClient == null) return;
+
+    final youtubeApi = YouTubeApi(authClient);
+    final String timeRegistry = _nowTimestamp();
+    final Map<String, dynamic> deletedNames = {};
+
+    final String rawInput = playlistData['id'] as String? ?? '';
+    final String playlistId = extractPlaylistId(rawInput);
+    if (playlistId.isEmpty) return;
+
+    final String playlistTitle = playlistData['name'] as String? ?? 'Unknown';
+    final int total = selectedItems.length;
+
+    deletedNames[playlistId] = {
+      'Name': playlistTitle,
+      'Dates': {timeRegistry: <String, String>{}},
+    };
+
+    for (int i = 0; i < selectedItems.length; i++) {
+      final item = selectedItems[i];
+      onProgress(i + 1, total, item.title);
+      try {
+        await youtubeApi.playlistItems.delete(item.playlistItemId);
+        (deletedNames[playlistId]['Dates'][timeRegistry]
+                as Map<String, String>)[item.title] =
+            item.videoId;
+        // Notify caller of partial progress after every successful deletion
+        onPartialResult(Map<String, dynamic>.from(deletedNames));
+      } on DetailedApiRequestError catch (e) {
+        // 403 = quota exceeded; surface remaining items for retry
+        if (e.status == 403) {
+          final remaining = selectedItems.sublist(i);
+          // Notify caller of what we managed before hitting quota
+          if ((deletedNames[playlistId]['Dates'][timeRegistry]
+                  as Map<String, String>)
+              .isNotEmpty) {
+            onPartialResult(Map<String, dynamic>.from(deletedNames));
+          }
+          throw QuotaExceededException(remaining);
+        }
+        debugPrint("Błąd usuwania (api) '\${item.title}': \$e");
+      } catch (e) {
+        debugPrint("Błąd usuwania '\${item.title}': \$e");
+      }
+    }
+  }
+}
+
+// W pliku actions.dart
+
+// actions.dart
+
+class DynamicBottomAd extends StatefulWidget {
+  final double availableHeight;
+  final Widget placeholder;
+
+  const DynamicBottomAd({
+    Key? key,
+    required this.availableHeight,
+    required this.placeholder,
+  }) : super(key: key);
+
+  @override
+  _DynamicBottomAdState createState() => _DynamicBottomAdState();
+}
+
+class _DynamicBottomAdState extends State<DynamicBottomAd> {
+  BannerAd? _bannerAd;
+  bool _isLoaded = false;
+  AdSize? _selectedSize;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_bannerAd == null) {
+      if (Platform.isAndroid || Platform.isIOS) {
+        _loadAdaptiveAd();
+      } else {
+        // Desktop — tylko ustaw rozmiar żeby placeholder się wyrenderował
+        setState(() {
+          _selectedSize = widget.availableHeight >= 250
+              ? AdSize.mediumRectangle
+              : AdSize.banner;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadAdaptiveAd() async {
+    // Pobieramy szerokość ekranu bez wcięć systemowych
+    final width =
+        MediaQuery.of(context).size.width -
+        MediaQuery.of(context).padding.left -
+        MediaQuery.of(context).padding.right;
+
+    AdSize adaptiveSize;
+    if (widget.availableHeight >= 250) {
+      // Duże miejsce — spróbuj inline adaptive (może być wysoki)
+      adaptiveSize =
+          await AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(
+            width.truncate(),
+          );
+    } else if (widget.availableHeight >= 50) {
+      // Małe miejsce — zwykły banner 320x50
+      adaptiveSize = AdSize.banner;
+    } else {
+      return; // Za mało miejsca
+    }
+
+    // Upewnij się że reklama nie przekroczy dostępnej wysokości
+    final adHeight = adaptiveSize.height.toDouble();
+    if (adHeight > widget.availableHeight) {
+      adaptiveSize = AdSize.banner; // Fallback do najmniejszego
+    }
+
+    if (!mounted) return;
+    setState(() => _selectedSize = adaptiveSize);
+
+    _bannerAd = BannerAd(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
+      request: const AdRequest(),
+      size: adaptiveSize,
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) setState(() => _isLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          if (mounted) setState(() => _bannerAd = null);
+          debugPrint('Ad failed: $error');
+        },
+      ),
+    )..load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_selectedSize == null) return const SizedBox.shrink();
+
+    final adWidth = _selectedSize!.width.toDouble();
+    final adHeight = _selectedSize!.height.toDouble();
+
+    return AnimatedCrossFade(
+      duration: const Duration(milliseconds: 500),
+      firstChild: widget.placeholder,
+      secondChild: SizedBox(
+        width: adWidth,
+        height: adHeight,
+        child: _bannerAd != null ? AdWidget(ad: _bannerAd!) : const SizedBox(),
+      ),
+      crossFadeState: _isLoaded
+          ? CrossFadeState.showSecond
+          : CrossFadeState.showFirst,
+    );
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
 }
 
 // Przykład pomocniczego widgetu dla AdMob
+
+// actions.dart
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reklamy kontekstowe — dobierane na podstawie szacowanego czasu operacji
+// < 10s  → baner (InlineBannerAd)
+// 10–45s → krótki filmik (interstitial)
+// > 45s  → filmik z nagrodą (rewarded)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Wyświetla właściwy typ reklamy na podstawie szacowanego czasu całej operacji.
+/// Gdy [estimatedTotalSeconds] jest null (pierwsza sekunda, brak danych),
+/// pokazuje baner jako bezpieczny fallback.
+class ProgressAdWidget extends StatefulWidget {
+  final int? estimatedTotalSeconds;
+
+  const ProgressAdWidget({Key? key, this.estimatedTotalSeconds})
+    : super(key: key);
+
+  @override
+  State<ProgressAdWidget> createState() => _ProgressAdWidgetState();
+}
+
+class _ProgressAdWidgetState extends State<ProgressAdWidget> {
+  _AdType? _lockedType;
+  final List<int> _estimationBuffer = []; // Przechowuje ostatnie estymacje
+
+  @override
+  void didUpdateWidget(ProgressAdWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Jeśli typ nie jest jeszcze zablokowany i mamy nową estymatę
+    if (_lockedType == null && widget.estimatedTotalSeconds != null) {
+      _estimationBuffer.add(widget.estimatedTotalSeconds!);
+
+      // Czekamy, aż uzbieramy 3 próbki (lub mniej, jeśli operacja jest krótka)
+      if (_estimationBuffer.length >= 3) {
+        double average =
+            _estimationBuffer.reduce((a, b) => a + b) /
+            _estimationBuffer.length;
+        setState(() {
+          _lockedType = _resolveType(average.round());
+        });
+      }
+    }
+  }
+
+  _AdType _resolveType(int secs) {
+    if (secs < 10) return _AdType.banner;
+    if (secs <= 45) return _AdType.interstitial;
+    return _AdType.rewarded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Dopóki nie mamy średniej z 3 próbek, możemy pokazywać mały loader lub banner
+    final type = _lockedType ?? _AdType.banner;
+
+    switch (type) {
+      case _AdType.banner:
+        return const InlineBannerAd(size: AdSize.mediumRectangle);
+      case _AdType.interstitial:
+        return const _InterstitialProgressAd();
+      case _AdType.rewarded:
+        return const _RewardedProgressAd();
+    }
+  }
+}
+
+enum _AdType { banner, interstitial, rewarded }
+
+// ── Krótki filmik (interstitial) ─────────────────────────────────────────────
+
+class _InterstitialProgressAd extends StatefulWidget {
+  const _InterstitialProgressAd({Key? key}) : super(key: key);
+
+  @override
+  State<_InterstitialProgressAd> createState() =>
+      _InterstitialProgressAdState();
+}
+
+class _InterstitialProgressAdState extends State<_InterstitialProgressAd> {
+  InterstitialAd? _ad;
+  bool _shown = false;
+  bool _showFallbackBanner = false; // Nowa flaga
+
+  static const _androidId = 'ca-app-pub-3940256099942544/1033173712';
+  static const _iosId = 'ca-app-pub-3940256099942544/4411468910';
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isAndroid || Platform.isIOS) _load();
+  }
+
+  void _load() {
+    InterstitialAd.load(
+      adUnitId: Platform.isAndroid ? _androidId : _iosId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _ad = ad;
+          _ad!.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              setState(
+                () => _showFallbackBanner = true,
+              ); // Pokaż banner po zamknięciu
+            },
+            onAdFailedToShowFullScreenContent: (ad, _) {
+              ad.dispose();
+              setState(
+                () => _showFallbackBanner = true,
+              ); // Pokaż banner jeśli wideo padło
+            },
+          );
+          if (mounted && !_shown) {
+            _shown = true;
+            _ad!.show();
+          }
+        },
+        onAdFailedToLoad: (error) {
+          debugPrint('[Ad] Interstitial failed: $error');
+          setState(() => _showFallbackBanner = true);
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showFallbackBanner) {
+      return const InlineBannerAd(size: AdSize.mediumRectangle);
+    }
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        '🎬 Ładowanie reklamy wideo...',
+        style: TextStyle(color: Colors.white38, fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
+}
+
+// ── Filmik z nagrodą (rewarded) ───────────────────────────────────────────────
+
+class _RewardedProgressAd extends StatefulWidget {
+  const _RewardedProgressAd({Key? key}) : super(key: key);
+
+  @override
+  State<_RewardedProgressAd> createState() => _RewardedProgressAdState();
+}
+
+class _RewardedProgressAdState extends State<_RewardedProgressAd> {
+  RewardedAd? _ad;
+  bool _shown = false;
+  bool _showFallbackBanner = false; // Nowa flaga
+
+  static const _androidId = 'ca-app-pub-3940256099942544/5224354917';
+  static const _iosId = 'ca-app-pub-3940256099942544/1712485313';
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isAndroid || Platform.isIOS) _load();
+  }
+
+  @override
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
+
+  void _load() {
+    RewardedAd.load(
+      adUnitId: Platform.isAndroid ? _androidId : _iosId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _ad = ad;
+          _ad!.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              setState(
+                () => _showFallbackBanner = true,
+              ); // Pokaż banner po wideo
+            },
+            onAdFailedToShowFullScreenContent: (ad, _) {
+              ad.dispose();
+              setState(() => _showFallbackBanner = true);
+            },
+          );
+          if (mounted && !_shown) {
+            _shown = true;
+            _ad!.show(onUserEarnedReward: (_, reward) => {});
+          }
+        },
+        onAdFailedToLoad: (error) {
+          setState(() => _showFallbackBanner = true);
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showFallbackBanner) {
+      return const InlineBannerAd(size: AdSize.mediumRectangle);
+    }
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        '🎁 Ładowanie reklamy z nagrodą...',
+        style: TextStyle(color: Colors.white38, fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+}
+
 class InlineBannerAd extends StatefulWidget {
-  const InlineBannerAd({Key? key}) : super(key: key);
+  final AdSize size; // Dodajemy parametr rozmiaru
+
+  const InlineBannerAd({
+    Key? key,
+    this.size = AdSize.mediumRectangle, // Domyślny rozmiar
+  }) : super(key: key);
 
   @override
   _InlineBannerAdState createState() => _InlineBannerAdState();
@@ -406,20 +1411,23 @@ class _InlineBannerAdState extends State<InlineBannerAd> {
   @override
   void initState() {
     super.initState();
-    _loadAd();
+    if (Platform.isAndroid || Platform.isIOS) {
+      _loadAd();
+    }
   }
 
   void _loadAd() {
     _bannerAd = BannerAd(
       adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111' // Testowy ID Android
-          : 'ca-app-pub-3940256099942544/2934735716', // Testowy ID iOS
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
       request: const AdRequest(),
-      size: AdSize.banner,
+      size: widget.size, // Używamy rozmiaru z parametru widgetu
       listener: BannerAdListener(
         onAdLoaded: (_) => setState(() => _isLoaded = true),
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
+          if (mounted) setState(() => _bannerAd = null);
           debugPrint('Ad failed to load: $error');
         },
       ),
@@ -435,20 +1443,13 @@ class _InlineBannerAdState extends State<InlineBannerAd> {
   @override
   Widget build(BuildContext context) {
     if (_isLoaded && _bannerAd != null) {
-      return SizedBox(
+      return Container(
+        alignment: Alignment.center,
         width: _bannerAd!.size.width.toDouble(),
         height: _bannerAd!.size.height.toDouble(),
         child: AdWidget(ad: _bannerAd!),
       );
     }
-    return const SizedBox(
-      height: 50,
-      child: Center(
-        child: Text(
-          "Ad...",
-          style: TextStyle(color: Colors.white24, fontSize: 10),
-        ),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }

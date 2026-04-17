@@ -1,0 +1,18 @@
+[33m7af9a1d[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to HEAD~3
+[33m8335f09[m HEAD@{1}: pull: Merge made by the 'ort' strategy.
+[33m86fd477[m HEAD@{2}: reset: moving to HEAD~2
+[33ma8b3d60[m HEAD@{3}: pull: Merge made by the 'ort' strategy.
+[33m9ccca1c[m HEAD@{4}: reset: moving to HEAD~5
+[33mc5d1586[m HEAD@{5}: commit: stable version
+[33m1cb7297[m HEAD@{6}: commit: Zacznij ignorować actions.dart i usuń go z repo
+[33m218f9c3[m HEAD@{7}: commit: stable version
+[33mc79042c[m HEAD@{8}: pull: Merge made by the 'ort' strategy.
+[33mfb3e761[m HEAD@{9}: commit: stable version
+[33m9ccca1c[m HEAD@{10}: commit: stable version
+[33m86fd477[m HEAD@{11}: reset: moving to HEAD~1
+[33md74dbb9[m HEAD@{12}: pull: Merge made by the 'ort' strategy.
+[33m86fd477[m HEAD@{13}: commit: stable version
+[33m4e14e2b[m HEAD@{14}: commit: Wsm to wyświetlanie reklam i przy okazji lepsze wybieranie filmów jest narpawione
+[33m7af9a1d[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m HEAD@{15}: commit: second commit
+[33mf949064[m HEAD@{16}: Branch: renamed refs/heads/master to refs/heads/main
+[33mf949064[m HEAD@{18}: commit (initial): first commit

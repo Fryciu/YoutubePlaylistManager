@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'YouTube Playlist Manager'**
+  /// **'ManageTube'**
   String get appTitle;
 
   /// No description provided for @historyTitle.
@@ -116,11 +116,11 @@ abstract class AppLocalizations {
   /// **'Saved Playlists'**
   String get savedPlaylists;
 
-  /// No description provided for @removeVideos.
+  /// No description provided for @chooseVideos_to_be_removed.
   ///
   /// In en, this message translates to:
-  /// **'Remove videos from playlist'**
-  String get removeVideos;
+  /// **'Choose videos to be removed from playlist'**
+  String get chooseVideos_to_be_removed;
 
   /// No description provided for @edit.
   ///
@@ -143,38 +143,8 @@ abstract class AppLocalizations {
   /// No description provided for @statusDeleted.
   ///
   /// In en, this message translates to:
-  /// **'Deleted: {count} videos'**
+  /// **'Deleted: {count} {count, plural, one{video} other{videos}}'**
   String statusDeleted(int count);
-
-  /// No description provided for @apiKeyLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Paste client_secret.json content here'**
-  String get apiKeyLabel;
-
-  /// No description provided for @saveApi.
-  ///
-  /// In en, this message translates to:
-  /// **'Save API'**
-  String get saveApi;
-
-  /// No description provided for @jsonError.
-  ///
-  /// In en, this message translates to:
-  /// **'JSON Error'**
-  String get jsonError;
-
-  /// No description provided for @apiKeyExists.
-  ///
-  /// In en, this message translates to:
-  /// **'API Key exists'**
-  String get apiKeyExists;
-
-  /// No description provided for @noApiKey.
-  ///
-  /// In en, this message translates to:
-  /// **'No API Key'**
-  String get noApiKey;
 
   /// No description provided for @addNewPlaylist.
   ///
@@ -185,7 +155,7 @@ abstract class AppLocalizations {
   /// No description provided for @playlistName.
   ///
   /// In en, this message translates to:
-  /// **'Playlist Name'**
+  /// **'Playlist name'**
   String get playlistName;
 
   /// No description provided for @playlistId.
@@ -197,37 +167,37 @@ abstract class AppLocalizations {
   /// No description provided for @deleteCountHint.
   ///
   /// In en, this message translates to:
-  /// **'Number of videos (\'all\' or digit)'**
+  /// **'Number of videos (\'all\' or number)'**
   String get deleteCountHint;
 
   /// No description provided for @addPlaylistBtn.
   ///
   /// In en, this message translates to:
-  /// **'Add Playlist'**
+  /// **'Add playlist'**
   String get addPlaylistBtn;
 
   /// No description provided for @saveChanges.
   ///
   /// In en, this message translates to:
-  /// **'Save Changes'**
+  /// **'Save changes'**
   String get saveChanges;
 
   /// No description provided for @noName.
   ///
   /// In en, this message translates to:
-  /// **'No Name'**
+  /// **'No name'**
   String get noName;
 
   /// No description provided for @deleteSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Deletion finished and history saved.'**
+  /// **'Deletion completed and history saved.'**
   String get deleteSuccess;
 
   /// No description provided for @idorlink.
   ///
   /// In en, this message translates to:
-  /// **'ID or link to the playlist'**
+  /// **'ID or link to playlist'**
   String get idorlink;
 
   /// No description provided for @helptitle.
@@ -236,46 +206,58 @@ abstract class AppLocalizations {
   /// **'How to use the app?'**
   String get helptitle;
 
+  /// No description provided for @notlogged.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome to ManageTube, app for managing youtube playlists. Before you begin, get familiar with the app guide by clicking the question mark in upper right corner.'**
+  String get notlogged;
+
   /// No description provided for @helpstep1.
   ///
   /// In en, this message translates to:
-  /// **'1. Paste the playlist ID or the full browser link. The app will automatically detect the correct ID.'**
+  /// **'1. Log in to your Google account by clicking the profile icon (next to the question mark).'**
   String get helpstep1;
 
   /// No description provided for @helpstep2.
   ///
   /// In en, this message translates to:
-  /// **'2. Set the number of videos to delete (\'all\' or a specific number). Videos are removed starting from the first ones visible on the playlist.'**
+  /// **'2. Import playlists using the \'Choose playlists to import\' button.'**
   String get helpstep2;
 
   /// No description provided for @helpstep3.
   ///
   /// In en, this message translates to:
-  /// **'3. Click \'Remove videos\' – the app will handle the rest!'**
+  /// **'3. After importing playlists, specify which you want to remove videos from, and press the green button saying \'Choose videos to be removed from playlist\' of the chosen playlist'**
   String get helpstep3;
 
   /// No description provided for @helpstep4.
   ///
   /// In en, this message translates to:
-  /// **'4. If you delete something by mistake, go to \'History\'. You will find all your deleted videos there, allowing you to easily find and restore them manually on YouTube.'**
+  /// **'4. Choose videos you want to be removed by clicking on them, and then click \'DELETE x video/videos\' – the app will handle the rest!'**
   String get helpstep4;
+
+  /// No description provided for @helpstep5.
+  ///
+  /// In en, this message translates to:
+  /// **'5. If you delete something by mistake, go to \'History\'. You will find all your deleted videos there, allowing you to easily find and manually restore them on YouTube.'**
+  String get helpstep5;
 
   /// No description provided for @understand.
   ///
   /// In en, this message translates to:
-  /// **'Got it'**
+  /// **'I understand'**
   String get understand;
 
   /// No description provided for @nohistory.
   ///
   /// In en, this message translates to:
-  /// **'No history found'**
+  /// **'No history'**
   String get nohistory;
 
   /// No description provided for @deletedvideoshistory.
   ///
   /// In en, this message translates to:
-  /// **'Deleted Videos History'**
+  /// **'Deleted videos history'**
   String get deletedvideoshistory;
 
   /// No description provided for @unknownplaylist.
@@ -305,7 +287,7 @@ abstract class AppLocalizations {
   /// No description provided for @confirmDeleteContent.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to remove this entire playlist from history? This data will be lost.'**
+  /// **'Are you sure you want to delete this entire playlist from history? This data will be lost.'**
   String get confirmDeleteContent;
 
   /// No description provided for @cancel.
@@ -319,6 +301,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete all'**
   String get deleteAll;
+
+  /// No description provided for @login.
+  ///
+  /// In en, this message translates to:
+  /// **'Login'**
+  String get login;
+
+  /// No description provided for @logout.
+  ///
+  /// In en, this message translates to:
+  /// **'Logout'**
+  String get logout;
+
+  /// No description provided for @importplaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose playlists to import'**
+  String get importplaylists;
+
+  /// No description provided for @chooseplaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose playlists'**
+  String get chooseplaylists;
+
+  /// No description provided for @selectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get selectAll;
+
+  /// No description provided for @unselectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Unselect all'**
+  String get unselectAll;
+
+  /// No description provided for @addSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Add selected'**
+  String get addSelected;
+
+  /// No description provided for @noPlaylistsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No playlists found.'**
+  String get noPlaylistsFound;
+
+  /// No description provided for @confirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmation'**
+  String get confirmTitle;
+
+  /// No description provided for @deleteConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete {count} {count, plural, one{video} other{videos}} from the playlist?'**
+  String deleteConfirmMessage(int count);
+
+  /// No description provided for @deleteAllPlaylistsConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete all saved playlists?'**
+  String get deleteAllPlaylistsConfirm;
+
+  /// No description provided for @listCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'List cleared.'**
+  String get listCleared;
+
+  /// No description provided for @loading.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting...'**
+  String get loading;
+
+  /// No description provided for @deletingVideos.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting videos'**
+  String get deletingVideos;
+
+  /// No description provided for @nameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get nameLabel;
+
+  /// No description provided for @idLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'ID'**
+  String get idLabel;
+
+  /// No description provided for @rangeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter ranges (e.g., 1-5,7,9-11):'**
+  String get rangeHint;
+
+  /// No description provided for @selectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String selectedCount(int count);
+
+  /// No description provided for @deleteAction.
+  ///
+  /// In en, this message translates to:
+  /// **'DELETE {count} {count, plural, one{VIDEO} other{VIDEOS}}'**
+  String deleteAction(int count);
+
+  /// No description provided for @noVideosFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No videos found'**
+  String get noVideosFound;
 }
 
 class _AppLocalizationsDelegate

@@ -1,4 +1,4 @@
-package com.example.youtube_playlist_cleaner
+package com.fryciuuu.managetube
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,23 +1,18 @@
 {
   "@@locale": "pl",
-  "appTitle": "Menedżer Playlist YouTube",
+  "appTitle": "ManageTube",
   "historyTitle": "Historia usuwania",
   "savedPlaylists": "Zapisane playlisty",
-  "removeVideos": "Usuń filmy z playlisty",
+  "chooseVideos_to_be_removed": "Wybierz filmy do usunięcia z playlisty",
   "edit": "Edytuj",
   "remove": "Usuń",
   "forDeletion": "Do usunięcia",
-  "statusDeleted": "Usunięto: {count} filmów",
+  "statusDeleted": "Usunięto: {count} {count, plural, one{film} few{filmy} other{filmów}}",
   "@statusDeleted": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "apiKeyLabel": "Wklej tutaj zawartość client_secret.json",
-  "saveApi": "Zapisz API",
-  "jsonError": "Błąd JSON",
-  "apiKeyExists": "Klucz API istnieje",
-  "noApiKey": "Brak klucza API",
   "addNewPlaylist": "Dodaj nową playlistę",
   "playlistName": "Nazwa playlisty",
   "playlistId": "ID playlisty lub jej link",
@@ -28,10 +23,12 @@
   "deleteSuccess": "Zakończono usuwanie i zapisano historię.",
   "idorlink": "ID lub link do playlisty",
   "helptitle": "Jak korzystać z aplikacji?",
-  "helpstep1": "1. Wklej ID playlisty lub pełny link z przeglądarki. Aplikacja automatycznie rozpozna właściwy identyfikator.",
-  "helpstep2": "2. Określ liczbę filmów do usunięcia ('all' lub liczba). Filmy usuwane są od pierwszych widocznych na playliście",
-  "helpstep3": "3. Kliknij 'Usuń filmy' – aplikacja zajmie się resztą!",
-  "helpstep4": "4. Jeśli usuniesz coś przez pomyłkę, przejdź do 'Historii'. Tam znajdziesz wszystkie swoje usunięte filmy, co pozwoli Ci je łatwo odnaleźć i przywrócić ręcznie na YouTube.",
+  "notlogged": "Witaj w ManageTube, aplikacji do zarządzania playlistami na YouTube. Zanim zaczniesz, zapoznaj się z poradnikiem klikając pytajnik w prawym górnym rogu.",
+  "helpstep1": "1. Zaloguj się na swoje konto Google klikając na ikonę profilu (obok pytajnika)",
+  "helpstep2": "2. Zaimportuj playlisty za pomocą przycisku 'Wybierz playlisty do importu'.",
+  "helpstep3": "3. Po zaimportowaniu playlist, określ z której chcesz usunąć filmy, po czym kliknij zielony przycisk z napisem 'Wybierz filmy do usunięcia z playlisty' z wybranej playlisty.",
+  "helpstep4": "4. Wybierz filmy które chcesz usunąć i kliknij 'Usuń x film/filmy/filmów' – aplikacja zajmie się resztą!",
+  "helpstep5": "5. Jeśli usuniesz coś przez pomyłkę, przejdź do 'Historii'. Tam znajdziesz wszystkie swoje usunięte filmy, co pozwoli Ci je łatwo odnaleźć i przywrócić ręcznie na YouTube.",
   "understand": "Rozumiem",
   "nohistory": "Brak historii",
   "deletedvideoshistory": "Historia usuniętych filmów",
@@ -41,5 +38,40 @@
   "confirmDeleteTitle": "Usuń z historii",
   "confirmDeleteContent": "Czy na pewno chcesz usunąć całą tę playlistę z historii? Te dane przepadną.",
   "cancel": "Anuluj",
-  "deleteAll": "Usuń wszystko"
+  "deleteAll": "Usuń wszystkie",
+  "login": "Zaloguj się",
+  "logout": "Wyloguj się",
+  "importplaylists": "Wybierz playlisty do importu",
+  "chooseplaylists": "Wybierz playlisty",
+  "selectAll": "Zaznacz wszystkie",
+  "unselectAll": "Odznacz wszystkie",
+  "addSelected": "Dodaj wybrane",
+  "noPlaylistsFound": "Nie znaleziono playlist.",
+  "confirmTitle": "Potwierdzenie",
+  "deleteConfirmMessage": "Czy na pewno chcesz usunąć {count} {count, plural, one{film} few{filmy} other{filmów}} z playlisty?",
+  "@deleteConfirmMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "deleteAllPlaylistsConfirm": "Czy na pewno chcesz usunąć wszystkie zapisane playlisty?",
+  "listCleared": "Lista wyczyszczona.",
+  "loading": "Łączenie...",
+  "deletingVideos": "Usuwanie filmów",
+  "nameLabel": "Nazwa",
+  "idLabel": "ID",
+  "rangeHint": "Wpisz zakresy (np. 1-5,7,9-11):",
+  "selectedCount": "{count} zaznaczonych",
+  "@selectedCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "deleteAction": "USUŃ {count} {count, plural, one{FILM} few{FILMY} other{FILMÓW}}",
+  "@deleteAction": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "noVideosFound": "Nie znaleziono filmów"
 }
