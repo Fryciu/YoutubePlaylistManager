@@ -269,87 +269,83 @@ class PlaylistActions {
   // W pliku actions.dart zmodyfikuj metodę _getAuthClient:
 
   static Future<auth.AuthClient?> _getAuthClient() async {
-    // 1. Jeśli mamy już aktywny i ważny klient w pamięci, zwróć go natychmiast
+    // 1. Sprawdzenie Cache w RAM
     if (_cachedAuthClient != null) {
-      final currentEmail = currentUserNotifier.value?.email;
-      if (currentEmail == null || currentEmail == _cachedEmail) {
-        return _cachedAuthClient;
-      } else {
-        // Zmiana użytkownika - czyścimy cache
-        _cachedAuthClient = null;
-        _cachedEmail = null;
+      final credentials = _cachedAuthClient!.credentials;
+      // Margines 5 minut, aby uniknąć błędów synchronizacji czasu
+      final bool isExpired = credentials.accessToken.expiry.isBefore(
+        DateTime.now().toUtc().add(const Duration(minutes: 5)),
+      );
+
+      if (!isExpired) {
+        final currentEmail = currentUserNotifier.value?.email;
+        if (currentEmail == null || currentEmail == _cachedEmail) {
+          return _cachedAuthClient;
+        }
       }
+      debugPrint('[Auth] Cache wygasł lub nieaktualny — czyszczę...');
+      _cachedAuthClient = null;
     }
 
     if (_authInProgress) return null;
-
     _authInProgress = true;
+
     try {
+      // --- LOGIKA DLA ANDROID / IOS ---
       if (Platform.isAndroid || Platform.isIOS) {
         await initialize();
 
-        // 2. Próba przywrócenia klienta z zapisanych tokenów — BEZ UI, BEZ popup
-        final restoredClient = await _loadAuthClientFromPrefs();
-        if (restoredClient != null) {
-          _cachedAuthClient = restoredClient;
-          _cachedEmail = currentUserNotifier.value?.email;
-          debugPrint('[Auth] Klient przywrócony z prefs — brak popup');
-          return _cachedAuthClient;
-        }
-
-        // 3. Próba cichego przywrócenia sesji przez GoogleSignIn SDK — BEZ UI
+        // 3. Próba cichego logowania przez SDK (jeśli prefs zawiodły)
         final account = await _googleSignIn.attemptLightweightAuthentication();
+        if (account == null) return null;
 
-        if (account == null) {
-          // Brak sesji — zwróć null, UI pokaże przycisk logowania
-          return null;
-        }
-
-        debugPrint('[Auth] Ciche logowanie OK: ${account.email}');
+        debugPrint('[Auth] Ciche logowanie SDK OK: ${account.email}');
 
         GoogleSignInClientAuthorization? authorization;
         try {
           authorization = await account.authorizationClient
               .authorizationForScopes(_scopes);
         } catch (e) {
-          debugPrint('[Auth] authorizationForScopes silent error: $e');
+          debugPrint('[Auth] Błąd pobierania grantu: $e');
         }
 
-        // 4. Jeśli grant wygasł lub nie istnieje — poproś raz z UI (jednorazowo)
+        // 4. Jeśli brak uprawnień — poproś z UI (ostatnia deska ratunku)
         if (authorization == null) {
-          debugPrint(
-            '[Auth] Brak grantu — proszę o scopey (jednorazowe UI)...',
-          );
+          debugPrint('[Auth] Brak uprawnień — wywołuję UI...');
           try {
             authorization = await account.authorizationClient.authorizeScopes(
               _scopes,
             );
           } catch (e) {
-            debugPrint('[Auth] authorizeScopes error: $e');
+            debugPrint('[Auth] Użytkownik odrzucił logowanie: $e');
             return null;
           }
         }
 
-        final client = authorization.authClient(scopes: _scopes);
+        final mobileClient = authorization.authClient(scopes: _scopes);
+
+        // Aktualizacja profilu
         currentUserNotifier.value = UserProfile(
           displayName: account.displayName,
           photoUrl: account.photoUrl,
           email: account.email,
         );
+
         await _saveProfileToCache(currentUserNotifier.value!);
-        // Zapisz tokeny trwale — żeby przy kolejnym uruchomieniu nie było popup
-        await _saveTokensToPrefs(client.credentials);
-        _cachedAuthClient = client;
+        await _saveTokensToPrefs(mobileClient.credentials);
+
+        _cachedAuthClient = mobileClient;
         _cachedEmail = account.email;
-        return client;
+        return mobileClient;
       }
 
+      // --- LOGIKA DLA DESKTOP (Windows/Linux/MacOS) ---
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         final directory = await getAppDirectory();
         final tokenFile = File(
           '${directory.path}${Platform.pathSeparator}token.json',
         );
-        auth.AuthClient? client;
+        auth.AuthClient? desktopClient;
 
         if (await tokenFile.exists()) {
           try {
@@ -358,21 +354,31 @@ class PlaylistActions {
               json.decode(content),
             );
             final baseClient = http.Client();
-            final refreshed = await auth.refreshCredentials(
-              _desktopClientId,
-              credentials,
-              baseClient,
-            );
-            await tokenFile.writeAsString(json.encode(refreshed.toJson()));
-            client = auth.authenticatedClient(baseClient, refreshed);
+
+            // Jeśli token wygasł — odświeżamy desktopowym ClientID
+            if (credentials.accessToken.expiry.isBefore(
+              DateTime.now().toUtc().add(const Duration(minutes: 5)),
+            )) {
+              debugPrint('[Auth] Desktop: Odświeżam token...');
+              final refreshed = await auth.refreshCredentials(
+                _desktopClientId,
+                credentials,
+                baseClient,
+              );
+              await tokenFile.writeAsString(json.encode(refreshed.toJson()));
+              desktopClient = auth.authenticatedClient(baseClient, refreshed);
+            } else {
+              desktopClient = auth.authenticatedClient(baseClient, credentials);
+            }
           } catch (e) {
-            debugPrint('[Auth] Błąd odświeżania: $e');
-            await tokenFile.delete();
+            debugPrint('[Auth] Desktop: Błąd odświeżania, usuwam token: $e');
+            if (await tokenFile.exists()) await tokenFile.delete();
           }
         }
 
-        if (client == null) {
-          client = await auth_io
+        // Jeśli nadal brak klienta (pierwsze logowanie)
+        if (desktopClient == null) {
+          desktopClient = await auth_io
               .clientViaUserConsent(_desktopClientId, _scopes, (url) async {
                 final uri = Uri.parse(url);
                 if (await canLaunchUrl(uri)) {
@@ -382,35 +388,39 @@ class PlaylistActions {
               .timeout(const Duration(minutes: 3));
 
           await tokenFile.writeAsString(
-            json.encode(client.credentials.toJson()),
+            json.encode(desktopClient.credentials.toJson()),
           );
         }
 
-        // --- KLUCZOWA POPRAWKA: Pobieraj dane profilu ZAWSZE, nawet po odświeżeniu tokenu ---
+        // Pobieranie danych profilu dla Desktopu
         try {
-          final response = await http.get(
+          final infoResponse = await http.get(
             Uri.parse('https://www.googleapis.com/oauth2/v3/userinfo'),
             headers: {
-              'Authorization': 'Bearer ${client.credentials.accessToken.data}',
+              'Authorization':
+                  'Bearer ${desktopClient.credentials.accessToken.data}',
             },
           );
-
-          if (response.statusCode == 200) {
-            final data = json.decode(response.body);
-            PlaylistActions.currentUserNotifier.value = UserProfile(
+          if (infoResponse.statusCode == 200) {
+            final data = json.decode(infoResponse.body);
+            currentUserNotifier.value = UserProfile(
               displayName: data['name'],
-              photoUrl: data['picture'], // To jest kluczowe dla zdjęcia
-              email: data['email'], // <-- dodaj
+              photoUrl: data['picture'],
+              email: data['email'],
             );
-            debugPrint('[Auth] Desktop: Pobrano profil ${data['name']}');
           }
         } catch (e) {
-          debugPrint('[Auth] Błąd pobierania info o użytkowniku: $e');
+          debugPrint('[Auth] Desktop: Błąd pobierania userinfo: $e');
         }
-        _cachedAuthClient = client;
+
+        _cachedAuthClient = desktopClient;
         _cachedEmail = currentUserNotifier.value?.email;
-        return client;
+        return desktopClient;
       }
+
+      return null;
+    } catch (e) {
+      debugPrint('[Auth] Krytyczny błąd w _getAuthClient: $e');
       return null;
     } finally {
       _authInProgress = false;
