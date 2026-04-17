@@ -58,4 +58,4 @@ flutter run windows
 flutter build windows
 ```
 ## Challenges & Planned Updates
-While the app works, right now you have to log out and log back in to refresh the token. In an earlier solution, the buttons "choose playlists to import" or "choose videos to be deleted" were triggering ` _googleSignIn.attemptLightweightAuthentication() ` which in turn made the little popup called "signing in" which I didn't like.
+For now all are overcomed... I think
